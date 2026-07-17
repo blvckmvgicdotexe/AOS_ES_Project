@@ -1,0 +1,7 @@
+# ignore build products
+*.bin
+*.d
+*.elf
+*.hex
+*.map
+*.o
