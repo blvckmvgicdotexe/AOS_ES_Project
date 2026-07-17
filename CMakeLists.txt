@@ -31,11 +31,13 @@ set(MIOSIX_KPATH ${CMAKE_SOURCE_DIR}/miosix-kernel/miosix)
 # This must to be done before the project() command
 set(CMAKE_TOOLCHAIN_FILE ${MIOSIX_KPATH}/cmake/Toolchains/gcc.cmake)
 set(CMAKE_BUILD_TYPE "Release")
+# Export compile commands for linting in editor
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(Main C CXX ASM)
 
 # Select the board (mandatory). See the options in miosix/arch/CMakeLists.txt
-set(MIOSIX_BOARD stm32...)
+set(MIOSIX_BOARD stm32f401re_nucleo)
 # User config path and linker script selection are optional
 set(MIOSIX_USER_CONFIG_PATH ${CMAKE_SOURCE_DIR}/config)
 # set(MIOSIX_LINKER_SCRIPT unikernel.ld)
