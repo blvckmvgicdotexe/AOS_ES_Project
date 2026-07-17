@@ -1,0 +1,3 @@
+CompileFlags:
+  Compiler: /opt/arm-miosix-eabi/bin/arm-miosix-eabi-g++
+  Add: [-D_MIOSIX_GCC_PATCH_MAJOR=4]

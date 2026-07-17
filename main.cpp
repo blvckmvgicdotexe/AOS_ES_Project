@@ -1,5 +1,4 @@
-
-#include <cstdio>
+#include <stdio.h>
 #include "miosix.h"
 
 using namespace std;
@@ -7,5 +6,6 @@ using namespace miosix;
 
 int main()
 {
-    //iprintf("Hello world, write your application here\n");
+    iprintf("My first program running under Miosix :-)\n");
+
 }
