@@ -1,9 +1,15 @@
 # README
+
 ## Project description
+
 This project implements a tool to sample and replay digital signals via infrared such as those sent by TV / AC remotes and the like.
+
 This project is shared among the courses of *Advanced Operating Systems* by prof. Vittorio Zaccaria and *Embedded Systems* by prof. William Fornaciari and is supervised by prof. Federico Terraneo and prof. Daniele Cattaneo.
+
 It runs on the Miosix RTOS (maintained by prof. Terraneo and Cattaneo) on a STM32 Nucleo F401RE board paired with a shield specifically manufactured for the *Sensor Systems* course by prof. Federica Villa.
+
 ## Miosix 3.00 setup instructions
+
 To setup a sample project on Linux:
 - Install ST-Link to detect and flash the STM32 board either via Github [here](https://github.com/stlink-org/stlink) or via your distro's package manager 
 - Install the latest version of the Miosix toolchain, available [here](https://miosix.org/wiki/index.php?title=Miosix_Toolchain) , which is version 15.2.0mp4.2 at the time of writing
