@@ -31,53 +31,6 @@ typedef Gpio<PA, 10> IR_Receiver;
 #define TIMER TIM2
 
 class IRReader {
-    private:
-
-        Thread * waiting = nullptr; // Condition variable to wait for conversion to be complete
-
-        struct Sample {
-            bool level;
-            uint timestamp_us;
-        };
-
-        typedef vector<Sample> Samples;
-        Samples samples;    // Buffer for recorded samples
-        const int NUM_SAMPLES = 512;
-
-        // This interrupt is triggered each time there is a signal change on the IR RX pin
-        void ISRsampleSignal() {
-            static bool recording = false;
-
-            // Do stuff only if the interrupt comes from my pin
-            if (!(EXTI->PR & EXTI_PR_PR10)) {
-                return;
-            }
-
-            EXTI->PR |= EXTI_PR_PR10;   // Clear interrupt pending bit
-
-            // Start timer if not recording already
-            if (!recording) {
-                TIMER->CR1 |= TIM_CR1_CEN;  // Start timer
-                recording = true;
-            }
-
-            // Sample timestamp and IR port level
-            // Interrupt is triggered on level change, thus level == 1 => rising edge
-            uint timestamp_us = TIMER->CNT;
-            bool signal_level = IR_Receiver::value();
-            samples.push_back({signal_level, timestamp_us});
-
-            // TODO move this in another interrupt, otherwise another spurious signal change is needed to disable the interrupt
-            if ((TIMER->CR1 & TIM_CR1_CEN) == 0) {  // Check whether timer has elapsed
-                EXTI->IMR &= ~EXTI_IMR_IM10; // Disable interrupt
-                recording = false;
-
-                // Wake up receiver function
-                waiting->IRQwakeup();
-                waiting = nullptr;
-            }
-        }
-
 
     public:
 
@@ -136,4 +89,53 @@ class IRReader {
             }
 
         }
+
+    private:
+
+        Thread * waiting = nullptr; // Condition variable to wait for conversion to be complete
+
+        struct Sample {
+            bool level;
+            uint timestamp_us;
+        };
+
+        typedef vector<Sample> Samples;
+        Samples samples;    // Buffer for recorded samples
+        const int NUM_SAMPLES = 512;
+
+        // This interrupt is triggered each time there is a signal change on the IR RX pin
+        void ISRsampleSignal() {
+            static bool recording = false;
+
+            // Do stuff only if the interrupt comes from my pin
+            if (!(EXTI->PR & EXTI_PR_PR10)) {
+                return;
+            }
+
+            EXTI->PR |= EXTI_PR_PR10;   // Clear interrupt pending bit
+
+            // Start timer if not recording already
+            if (!recording) {
+                TIMER->CR1 |= TIM_CR1_CEN;  // Start timer
+                recording = true;
+            }
+
+            // Sample timestamp and IR port level
+            // Interrupt is triggered on level change, thus level == 1 => rising edge
+            uint timestamp_us = TIMER->CNT;
+            bool signal_level = IR_Receiver::value();
+            samples.push_back({signal_level, timestamp_us});
+
+            // TODO move this in another interrupt, otherwise another spurious signal change is needed to disable the interrupt
+            if ((TIMER->CR1 & TIM_CR1_CEN) == 0) {  // Check whether timer has elapsed
+                EXTI->IMR &= ~EXTI_IMR_IM10; // Disable interrupt
+                recording = false;
+
+                // Wake up receiver function
+                waiting->IRQwakeup();
+                waiting = nullptr;
+            }
+        }
+
+
 };
