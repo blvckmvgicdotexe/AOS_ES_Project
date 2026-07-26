@@ -2,6 +2,7 @@
 #include <thread>
 #include <vector>
 #include "IREmitter.hpp"
+#include "IRReader.hpp"
 #include "drivers/gpio/stm32_gpio.h"
 #include "kernel/lock.h"
 #include "kernel/thread.h"
@@ -164,7 +165,8 @@ int main()
         user_btn_PC13::mode(Mode::INPUT);
     }
 
-    IREmitter ir;
+    //IREmitter ir;
+    IRReader ir_reader;
 
     enum keystate {PRESSED = 0, NOT_PRESSED = 1};
     keystate prev_keystate, curr_keystate = NOT_PRESSED;
@@ -180,9 +182,13 @@ int main()
             } else break;
         } while (true);
 
-        ir.send(wave);
+        iprintf("Capturing wave\n");
 
-        iprintf("Wave sent.\n");
+        ir_reader.receive();
+
+        // ir.send(wave);
+
+        // iprintf("Wave sent.\n");
 
     }
 }
