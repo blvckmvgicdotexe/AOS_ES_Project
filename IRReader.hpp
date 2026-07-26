@@ -48,14 +48,17 @@ class IRReader {
                 SYSCFG->EXTICR[2] = SYSCFG_EXTICR3_EXTI10_PA;   // Route IR pin (PA10) to EXTI10
                 EXTI->RTSR |= EXTI_RTSR_TR10;   // Trigger interrupt on rising edge
                 EXTI->FTSR |= EXTI_FTSR_TR10;   // Trigger interrupt on falling edge
-                IRQregisterIrq(lock, EXTI15_10_IRQn, &IRReader::ISRsampleSignal, this);   // Register interrupt routine
+                IRQregisterIrq(lock, EXTI15_10_IRQn, &IRReader::isr_sample_signal, this);   // Register ISR to sample on each signal edge
 
                 // 3. Configure timer (Up counter, one-pulse mode, 1us resolution, duration of 1s)
-                RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable TIM2 clock
-                TIMER->CR1 |= TIM_CR1_OPM;  // One-pulse mode (stops timer at the next update event like an overflow or setting the UG bit)
+                RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable timer clock
+                TIMER->CR1 |= TIM_CR1_OPM;  // One-pulse mode (stops timer at the next update event e.g. an overflow or setting the UG bit)
                 TIMER->PSC = 84000000 / 1000000 - 1;    // Configure 1MHz timer (i.e. 1us resolution).
                 TIMER->ARR = 1000000 - 1;   // Count 1000000us == 1s
                 TIMER->EGR |= TIM_EGR_UG;   // Generate update event to update register values
+                TIMER->SR &= ~TIM_SR_UIF;       // Clear update flag caused by setting UG
+                IRQregisterIrq(lock, TIM2_IRQn, &IRReader::isr_stop_sampling, this);      // Register ISR to stop sampling
+
             }
 
         }
@@ -66,11 +69,13 @@ class IRReader {
             samples.clear();    // Empty buffer before receiving
             {
                 FastGlobalIrqLock lock;
-                EXTI->IMR |= EXTI_IMR_IM10; // Enable interrupt to start processing
+                EXTI->IMR |= EXTI_IMR_IM10;     // Enable ISR to sample
+                TIMER->DIER |= TIM_DIER_UIE;    // Enable timer interrupt on update
 
                 waiting = Thread::IRQgetCurrentThread();
                 do {
                     iprintf("Waiting...\n");
+                    iprintf("Number of recorded samples: %d\n", samples.size());
                     Thread::IRQglobalIrqUnlockAndWait(lock);    // Sleep until ISR wakes me up
                 } while (waiting);
 
@@ -103,11 +108,13 @@ class IRReader {
         Samples samples;    // Buffer for recorded samples
         const int NUM_SAMPLES = 512;
 
-        // This interrupt is triggered each time there is a signal change on the IR RX pin
-        void ISRsampleSignal() {
-            static bool recording = false;
+        bool recording = false;
 
-            // Do stuff only if the interrupt comes from my pin
+
+        // This interrupt is triggered each time there is a signal change on the IR RX pin
+        void isr_sample_signal() {
+
+            // Guard to do work only if the interrupt is pending for my pin
             if (!(EXTI->PR & EXTI_PR_PR10)) {
                 return;
             }
@@ -125,17 +132,21 @@ class IRReader {
             uint timestamp_us = TIMER->CNT;
             bool signal_level = IR_Receiver::value();
             samples.push_back({signal_level, timestamp_us});
+            waiting->IRQwakeup();
+        }
 
-            // TODO move this in another interrupt, otherwise another spurious signal change is needed to disable the interrupt
-            if ((TIMER->CR1 & TIM_CR1_CEN) == 0) {  // Check whether timer has elapsed
-                EXTI->IMR &= ~EXTI_IMR_IM10; // Disable interrupt
+        void isr_stop_sampling() {
+            if (TIMER->SR & TIM_SR_UIF) {
+                TIMER->SR &= ~TIM_SR_UIF;       // Clear update flag
+                EXTI->IMR &= ~EXTI_IMR_IM10;    // Disable sampling interrupt
+                TIMER->DIER &= ~TIM_DIER_UIE;   // Disable this interrupt
                 recording = false;
 
                 // Wake up receiver function
                 waiting->IRQwakeup();
                 waiting = nullptr;
+
             }
         }
-
 
 };
