@@ -1,38 +1,15 @@
 #include <stdio.h>
 #include <thread>
 #include <vector>
+#include "IREmitter.hpp"
 #include "drivers/gpio/stm32_gpio.h"
 #include "kernel/lock.h"
 #include "kernel/thread.h"
 #include "miosix.h"
 
-#include "CMSIS/Device/ST/STM32F4xx/Include/stm32f401xe.h"
 
 using namespace std;
 using namespace miosix;
-
-// Defining data structures for signal
-
-// Signal state
-//         ^-------------+      <-------- HIGH
-//         |             |
-// --------+             v----- <-------- LOW
-//         ^ RISING      ^ FALLING
-enum SigState { LOW, HIGH, RISING_EDGE, FALLING_EDGE };
-
-// Signal values at given timestamps (ns)
-struct SigChange {
-    SigState state;
-    uint timestamp_ns;
-
-    SigChange(SigState s, uint t_ns) {
-        state = s;
-        timestamp_ns = t_ns;
-    }
-};
-
-typedef vector<SigChange> Wave;
-
 
 /*
  * Plan: generate a PWM signal at 38KHz (50% DC) using TIM2 CH3 and route it towards pin PB10 connected to the IR LED
@@ -49,173 +26,145 @@ int main()
     iprintf("IR Remote emitter\n");
 
     Wave wave = {{RISING_EDGE, 0},
-        {FALLING_EDGE, 9993500},
-        {RISING_EDGE, 12685000},
-        {FALLING_EDGE, 13522000},
-        {RISING_EDGE, 14008500},
-        {FALLING_EDGE, 14404500},
-        {RISING_EDGE, 14890500},
-        {FALLING_EDGE, 15286500},
-        {RISING_EDGE, 15772500},
-        {FALLING_EDGE, 16605500},
-        {RISING_EDGE, 17091500},
-        {FALLING_EDGE, 17933000},
-        {RISING_EDGE, 19297000},
-        {FALLING_EDGE, 20134000},
-        {RISING_EDGE, 20616000},
-        {FALLING_EDGE, 21012000},
-        {RISING_EDGE, 21498000},
-        {FALLING_EDGE, 21894000},
-        {RISING_EDGE, 22380000},
-        {FALLING_EDGE, 22776000},
-        {RISING_EDGE, 23262500},
-        {FALLING_EDGE, 23658500},
-        {RISING_EDGE, 24144500},
-        {FALLING_EDGE, 24540500},
-        {RISING_EDGE, 25027000},
-        {FALLING_EDGE, 25423000},
-        {RISING_EDGE, 25909000},
-        {FALLING_EDGE, 26305000},
-        {RISING_EDGE, 26787000},
-        {FALLING_EDGE, 27187000},
-        {RISING_EDGE, 27669000},
-        {FALLING_EDGE, 28069500},
-        {RISING_EDGE, 28551000},
-        {FALLING_EDGE, 28947000},
-        {RISING_EDGE, 29874500},
-        {FALLING_EDGE, 30275000},
-        {RISING_EDGE, 30761000},
-        {FALLING_EDGE, 31157000},
-        {RISING_EDGE, 31643000},
-        {FALLING_EDGE, 32039000},
-        {RISING_EDGE, 32525000},
-        {FALLING_EDGE, 32921000},
-        {RISING_EDGE, 33407000},
-        {FALLING_EDGE, 34240000},
-        {RISING_EDGE, 34726000},
-        {FALLING_EDGE, 35122500},
-        {RISING_EDGE, 35604000},
-        {FALLING_EDGE, 36004500},
-        {RISING_EDGE, 36486000},
-        {FALLING_EDGE, 36886500},
-        {RISING_EDGE, 37809500},
-        {FALLING_EDGE, 38646500},
-        {RISING_EDGE, 39133000},
-        {FALLING_EDGE, 39529000},
-        {RISING_EDGE, 40015000},
-        {FALLING_EDGE, 40411000},
-        {RISING_EDGE, 40897000},
-        {FALLING_EDGE, 41293500},
-        {RISING_EDGE, 41779500},
-        {FALLING_EDGE, 42175500},
-        {RISING_EDGE, 42661500},
-        {FALLING_EDGE, 43057500},
-        {RISING_EDGE, 43980500},
-        {FALLING_EDGE, 44385000},
-        {RISING_EDGE, 44867000},
-        {FALLING_EDGE, 45704000},
-        {RISING_EDGE, 46627000},
-        {FALLING_EDGE, 116243000},
-        {RISING_EDGE, 118934500},
-        {FALLING_EDGE, 119771500},
-        {RISING_EDGE, 120258000},
-        {FALLING_EDGE, 120654000},
-        {RISING_EDGE, 121135500},
-        {FALLING_EDGE, 121536000},
-        {RISING_EDGE, 122018000},
-        {FALLING_EDGE, 122855000},
-        {RISING_EDGE, 123337000},
-        {FALLING_EDGE, 124182500},
-        {RISING_EDGE, 125546500},
-        {FALLING_EDGE, 126379500},
-        {RISING_EDGE, 126865500},
-        {FALLING_EDGE, 127261500},
-        {RISING_EDGE, 127747500},
-        {FALLING_EDGE, 128143500},
-        {RISING_EDGE, 128629500},
-        {FALLING_EDGE, 129025500},
-        {RISING_EDGE, 129507500},
-        {FALLING_EDGE, 129908000},
-        {RISING_EDGE, 130389500},
-        {FALLING_EDGE, 130790000},
-        {RISING_EDGE, 131271500},
-        {FALLING_EDGE, 131672000},
-        {RISING_EDGE, 132154000},
-        {FALLING_EDGE, 132554000},
-        {RISING_EDGE, 133036000},
-        {FALLING_EDGE, 133436500},
-        {RISING_EDGE, 133918000},
-        {FALLING_EDGE, 134318500},
-        {RISING_EDGE, 134800000},
-        {FALLING_EDGE, 135200500},
-        {RISING_EDGE, 136123500},
-        {FALLING_EDGE, 136523500},
-        {RISING_EDGE, 137010000},
-        {FALLING_EDGE, 137406000},
-        {RISING_EDGE, 137892000},
-        {FALLING_EDGE, 138288000},
-        {RISING_EDGE, 138769500},
-        {FALLING_EDGE, 139170000},
-        {RISING_EDGE, 139651500},
-        {FALLING_EDGE, 140488500},
-        {RISING_EDGE, 140970500},
-        {FALLING_EDGE, 141371000},
-        {RISING_EDGE, 141852500},
-        {FALLING_EDGE, 142253000},
-        {RISING_EDGE, 142734500},
-        {FALLING_EDGE, 143135000},
-        {RISING_EDGE, 144058000},
-        {FALLING_EDGE, 144899000},
-        {RISING_EDGE, 145381000},
-        {FALLING_EDGE, 145781500},
-        {RISING_EDGE, 146263000},
-        {FALLING_EDGE, 146663500},
-        {RISING_EDGE, 147145000},
-        {FALLING_EDGE, 147545500},
-        {RISING_EDGE, 148027000},
-        {FALLING_EDGE, 148423000},
-        {RISING_EDGE, 148909000},
-        {FALLING_EDGE, 149305500},
-        {RISING_EDGE, 150228000},
-        {FALLING_EDGE, 150632500},
-        {RISING_EDGE, 151114500},
-        {FALLING_EDGE, 151951500},
-        {RISING_EDGE, 152874500}};
+        {FALLING_EDGE, 19991},
+        {RISING_EDGE, 20352},
+        {FALLING_EDGE, 21004},
+        {RISING_EDGE, 21360},
+        {FALLING_EDGE, 22016},
+        {RISING_EDGE, 22372},
+        {FALLING_EDGE, 24058},
+        {RISING_EDGE, 24414},
+        {FALLING_EDGE, 25070},
+        {RISING_EDGE, 25426},
+        {FALLING_EDGE, 26082},
+        {RISING_EDGE, 26438},
+        {FALLING_EDGE, 27094},
+        {RISING_EDGE, 27451},
+        {FALLING_EDGE, 28106},
+        {RISING_EDGE, 28463},
+        {FALLING_EDGE, 30148},
+        {RISING_EDGE, 30505},
+        {FALLING_EDGE, 31160},
+        {RISING_EDGE, 31517},
+        {FALLING_EDGE, 33198},
+        {RISING_EDGE, 33554},
+        {FALLING_EDGE, 34210},
+        {RISING_EDGE, 34566},
+        {FALLING_EDGE, 35226},
+        {RISING_EDGE, 35583},
+        {FALLING_EDGE, 36239},
+        {RISING_EDGE, 36595},
+        {FALLING_EDGE, 38276},
+        {RISING_EDGE, 38632},
+        {FALLING_EDGE, 39288},
+        {RISING_EDGE, 39644},
+        {FALLING_EDGE, 87569},
+        {RISING_EDGE, 87926},
+        {FALLING_EDGE, 88581},
+        {RISING_EDGE, 88938},
+        {FALLING_EDGE, 89593},
+        {RISING_EDGE, 89954},
+        {FALLING_EDGE, 91635},
+        {RISING_EDGE, 91992},
+        {FALLING_EDGE, 92647},
+        {RISING_EDGE, 93004},
+        {FALLING_EDGE, 93659},
+        {RISING_EDGE, 94020},
+        {FALLING_EDGE, 95701},
+        {RISING_EDGE, 96058},
+        {FALLING_EDGE, 97739},
+        {RISING_EDGE, 98095},
+        {FALLING_EDGE, 98751},
+        {RISING_EDGE, 99112},
+        {FALLING_EDGE, 100792},
+        {RISING_EDGE, 101149},
+        {FALLING_EDGE, 101805},
+        {RISING_EDGE, 102161},
+        {FALLING_EDGE, 103842},
+        {RISING_EDGE, 104199},
+        {FALLING_EDGE, 105879},
+        {RISING_EDGE, 106240},
+        {FALLING_EDGE, 107921},
+        {RISING_EDGE, 108277},
+        {FALLING_EDGE, 108933},
+        {RISING_EDGE, 109289},
+        {FALLING_EDGE, 110970},
+        {RISING_EDGE, 111331},
+        {FALLING_EDGE, 155148},
+        {RISING_EDGE, 155504},
+        {FALLING_EDGE, 156160},
+        {RISING_EDGE, 156516},
+        {FALLING_EDGE, 157172},
+        {RISING_EDGE, 157533},
+        {FALLING_EDGE, 159213},
+        {RISING_EDGE, 159570},
+        {FALLING_EDGE, 160225},
+        {RISING_EDGE, 160582},
+        {FALLING_EDGE, 161238},
+        {RISING_EDGE, 161598},
+        {FALLING_EDGE, 162250},
+        {RISING_EDGE, 162610},
+        {FALLING_EDGE, 163266},
+        {RISING_EDGE, 163623},
+        {FALLING_EDGE, 165303},
+        {RISING_EDGE, 165660},
+        {FALLING_EDGE, 166315},
+        {RISING_EDGE, 166676},
+        {FALLING_EDGE, 168357},
+        {RISING_EDGE, 168713},
+        {FALLING_EDGE, 169369},
+        {RISING_EDGE, 169726},
+        {FALLING_EDGE, 170381},
+        {RISING_EDGE, 170738},
+        {FALLING_EDGE, 171393},
+        {RISING_EDGE, 171754},
+        {FALLING_EDGE, 173435},
+        {RISING_EDGE, 173791},
+        {FALLING_EDGE, 174447},
+        {RISING_EDGE, 174803},
+        {FALLING_EDGE, 222725},
+        {RISING_EDGE, 223086},
+        {FALLING_EDGE, 223738},
+        {RISING_EDGE, 224098},
+        {FALLING_EDGE, 224754},
+        {RISING_EDGE, 225110},
+        {FALLING_EDGE, 226791},
+        {RISING_EDGE, 227152},
+        {FALLING_EDGE, 227803},
+        {RISING_EDGE, 228164},
+        {FALLING_EDGE, 228816},
+        {RISING_EDGE, 229176},
+        {FALLING_EDGE, 230857},
+        {RISING_EDGE, 231214},
+        {FALLING_EDGE, 232895},
+        {RISING_EDGE, 233255},
+        {FALLING_EDGE, 233907},
+        {RISING_EDGE, 234268},
+        {FALLING_EDGE, 235948},
+        {RISING_EDGE, 236305},
+        {FALLING_EDGE, 236961},
+        {RISING_EDGE, 237321},
+        {FALLING_EDGE, 238998},
+        {RISING_EDGE, 239359},
+        {FALLING_EDGE, 241040},
+        {RISING_EDGE, 241396},
+        {FALLING_EDGE, 243077},
+        {RISING_EDGE, 243437},
+        {FALLING_EDGE, 244089},
+        {RISING_EDGE, 244450},
+        {FALLING_EDGE, 246130},
+        {RISING_EDGE, 246487}};
 
     using user_btn_PC13 = Gpio<PC, 13>;
-    using IR_LED_PB10 = Gpio<PB, 10>;
 
     {   // Device configuration
         FastGlobalIrqLock lock; // RAII to disable IRQs in this scoped block (critical section)
 
         // Input button configuration
         user_btn_PC13::mode(Mode::INPUT);
-
-        // Timer configuration as a PWM generator
-        // Refer to 13.4 in the manual for register configuration
-        RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
-
-        // Control register 1
-        TIM2->CR1 |= TIM_CR1_ARPE;  // Enable auto-reload preload
-
-        // Capture/compare mode register (channels 3/4)
-        TIM2->CCMR2 |= TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1; // Enable PWM mode 1 (110) for channel 3
-        TIM2->CCMR2 |= TIM_CCMR2_OC3PE;                     // Enable auto-reload preload for channel 3
-
-        TIM2->PSC = 0;                      // No prescaling, keep time base at 84MHz
-        TIM2->ARR = 84000 / 38 - 1;         // Set frequency to 38KHz
-        TIM2->CCR3 = (84000 / 38 - 1) / 2;  // Set DC to 50%
-        TIM2->CNT=0;                        // Reset counter to 0
-
-        TIM2->EGR |= TIM_EGR_UG;   // Reinitialize counter and update registers
-
-        TIM2->CR1 |= TIM_CR1_CEN;   // Start timer (notably, the timer keeps running forever from this point on)
-        TIM2->CCER &= ~TIM_CCER_CC3E;   // Make sure channel output is disabled for now
-
-        // Routing PWM output to IR LED pin
-        IR_LED_PB10::mode(Mode::ALTERNATE);
-        IR_LED_PB10::alternateFunction(1);
     }
+
+    IREmitter ir;
 
     enum keystate {PRESSED = 0, NOT_PRESSED = 1};
     keystate prev_keystate, curr_keystate = NOT_PRESSED;
@@ -231,53 +180,9 @@ int main()
             } else break;
         } while (true);
 
+        ir.send(wave);
 
-        // Send the wave via IR by toggling channel on and off
-        // To ensure precision, interrupts are disabled while sending the waveform
+        iprintf("Wave sent.\n");
 
-        {
-            FastGlobalIrqLock irqLock;
-
-            uint prev_ts_ns = 0;
-            //uint prev_ts_sys_ns = IRQgetTime(); // WARNING: use this with interrupts disabled!
-            //uint curr_ts_sys_ns;
-
-            for(auto sc: wave) {
-
-                // Busy wait for a given delta time across consecutive timestamps
-                uint delta_us = (sc.timestamp_ns - prev_ts_ns) / 1000;
-
-                // Compute elapsed time according to system as a sanity check
-                // curr_ts_sys_ns = IRQgetTime();
-                // uint delta_sys_us = (curr_ts_sys_ns - prev_ts_sys_ns) / 1000;
-                // int error_us = delta_sys_us - delta_us;
-
-                if (delta_us > 1000) {
-                    delayMs(delta_us / 1000);
-                } else {
-                    delayUs(delta_us);
-                }
-
-
-                // Toggle PWM channel according to signal edge
-                switch (sc.state) {
-                    case RISING_EDGE:
-                    TIM2->CCER |= TIM_CCER_CC3E;    // Enable timer channel
-                    break;
-
-                    default:    // FALLING_EDGE
-                    TIM2->CCER &= ~TIM_CCER_CC3E;   // Disable timer channel
-
-                }
-
-                prev_ts_ns = sc.timestamp_ns;
-                // prev_ts_sys_ns = curr_ts_sys_ns;
-
-                //iprintf("%s edge after %d us with error %d\n", sc.state == RISING_EDGE ? "Rising" : "Falling", delta_us, error_us);
-            }
-        }
-
-        // Finally disable channel again
-        TIM2->CCER &= ~TIM_CCER_CC3E;
     }
 }
