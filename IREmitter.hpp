@@ -1,7 +1,9 @@
 #pragma once
 
+#include "PMDB_IR.hpp"
 #include "interfaces/delays.h"
 #include "kernel/lock.h"
+#include "kernel/thread.h"
 #include <vector>
 
 /*
@@ -17,45 +19,18 @@
 using namespace std;
 using namespace miosix;
 
-// Signal definitions
-
-// Signal state
-//         ^-------------+      <-------- HIGH
-//         |             |
-// --------+             v----- <-------- LOW
-//         ^ RISING      ^ FALLING
-#include <sys/types.h>
-enum SigState { LOW, HIGH, RISING_EDGE, FALLING_EDGE };
-
-// Signal values at given timestamps (ns)
-struct SigChange {
-    SigState state;
-    uint timestamp_ns;
-
-    SigChange(SigState s, uint t_ns) {
-        state = s;
-        timestamp_ns = t_ns;
-    }
-};
-
-typedef vector<SigChange> Wave;
 typedef Gpio<PB, 10> IR_LED;
 
-// TODO make class a singleton
-// TODO enable concurrent access with locks
 class IREmitter {
-    private:
 
     public:
 
-        // Configure TIM2 CH3 as PWM and PB10
         IREmitter() {
             {
                 FastGlobalIrqLock lock;
 
-                // Timer TIM2 CH3 configuration as a PWM generator
-                // Refer to 13.4 in the manual for register configuration
-                RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+                // Configure TIM2 CH3 as a PWM generator
+                RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable clock to TIM2
 
                 TIM2->CR1 |= TIM_CR1_ARPE;  // Enable auto-reload preload for timer
 
@@ -86,35 +61,25 @@ class IREmitter {
 
         // Send the wave via IR by toggling channel on and off
         // To ensure precision, interrupts are disabled while sending the waveform
-        void send(Wave& wave) {
+        void send(Samples& samples) {
             {
                 FastGlobalIrqLock irqLock;
 
-                uint prev_ts_ns = 0;
 
-                for(auto& sc: wave) {
+                uint start_ts_us = IRQgetTime() / 1000; // Initial timestamp
 
-                    // Busy wait for a given delta time across consecutive timestamps
-                    uint delta_us = (sc.timestamp_ns - prev_ts_ns) / 1000;
+                // Idea: busy wait on current timestamp until it is greater than the current sample's timestamp
+                for (auto& sample: samples) {
 
-                    if (delta_us > 1000) {
-                        delayMs(delta_us / 1000);
-                    } else {
-                        delayUs(delta_us);
-                    }
+                    int next_ts_us = start_ts_us + sample.timestamp_us;
+                    while (IRQgetTime() / 1000 - next_ts_us < 0) ;   // Busy wait until diff between current and target timestamp are equal
 
                     // Toggle PWM channel according to signal edge
-                    switch (sc.state) {
-                        case RISING_EDGE:
-                        TIM2->CCER |= TIM_CCER_CC3E;    // Enable timer channel
-                        break;
-
-                        default:    // FALLING_EDGE
+                    if (sample.level)   // Rising edge
                         TIM2->CCER &= ~TIM_CCER_CC3E;   // Disable timer channel
+                    else                // Falling edge -> stimulate receiver (active low)
+                        TIM2->CCER |= TIM_CCER_CC3E;    // Enable timer channel
 
-                    }
-
-                    prev_ts_ns = sc.timestamp_ns;
                 }
             }
 

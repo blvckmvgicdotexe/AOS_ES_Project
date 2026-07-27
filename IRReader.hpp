@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CMSIS/Device/ST/STM32F4xx/Include/stm32f401xe.h"
+#include "PMDB_IR.hpp"
 #include "interfaces/interrupts.h"
 #include "kernel/lock.h"
 #include <miosix.h>
@@ -63,6 +64,28 @@ class IRReader {
 
         }
 
+        ~IRReader() {
+            {
+                GlobalIrqLock lock;
+
+                // Disable interrupt on pin
+                SYSCFG->EXTICR[2] = 0;          // Reset to default line
+                EXTI->RTSR &= ~EXTI_RTSR_TR10;   // Disable trigger interrupt on rising edge
+                EXTI->FTSR &= ~EXTI_FTSR_TR10;   // Disable trigger interrupt on falling edge
+                IRQunregisterIrq(lock, EXTI15_10_IRQn, &IRReader::isr_sample_signal, this);
+
+                // Disable timer and unregister isr
+                RCC->APB1ENR &= ~RCC_APB1ENR_TIM2EN; // Disable timer clock
+                TIMER->CR1 = 0;  // Reset control register
+                TIMER->PSC = 0;
+                TIMER->ARR = 0;
+                TIMER->EGR |= TIM_EGR_UG;   // Generate update event to update register values
+                TIMER->SR &= ~TIM_SR_UIF;       // Clear update flag caused by setting UG
+                IRQunregisterIrq(lock, TIM2_IRQn, &IRReader::isr_stop_sampling, this);      // Register ISR to stop sampling
+            }
+
+        }
+
 
         // Starts capturing IR data, then returns once it is done
         void receive() {
@@ -99,12 +122,6 @@ class IRReader {
 
         Thread * waiting = nullptr; // Condition variable to wait for conversion to be complete
 
-        struct Sample {
-            bool level;
-            uint timestamp_us;
-        };
-
-        typedef vector<Sample> Samples;
         Samples samples;    // Buffer for recorded samples
         const int NUM_SAMPLES = 512;
 
