@@ -1,6 +1,3 @@
 [submodule "miosix-kernel"]
 	path = miosix-kernel
 	url = https://miosix.org/git-public/miosix-kernel.git
-[submodule "report"]
-	path = report
-	url = https://github.com/polimi-aos-lab/course-project-report-template.git
